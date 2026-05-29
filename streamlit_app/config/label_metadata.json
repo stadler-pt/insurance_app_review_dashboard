@@ -1,0 +1,42 @@
+{
+  "auth_registration": {
+    "display_name": "Login & Registrierung",
+    "description": "Issues or feedback regarding sign-in, account creation, electronic ID verification, and password resets.",
+    "is_active_on_dashboard": true
+  },
+  "tech_stability_crash": {
+    "display_name": "Performance, Stabilität & Abstürze",
+    "description": "Reports of app crashes, endless loading screens, server connection errors, and overall technical instability.",
+    "is_active_on_dashboard": true
+  },
+  "general_feedback": {
+    "display_name": "Allgemeines Feedback",
+    "description": "Broad opinions, general satisfaction, or non-specific praise/criticism about the app or the health insurance provider.",
+    "is_active_on_dashboard": true
+  },
+  "document_management": {
+    "display_name": "Dokumentenmanagement",
+    "description": "Feedback on uploading invoices, submitting sick notes (AU), and managing digital mail/documents.",
+    "is_active_on_dashboard": true
+  },
+  "smarthealth_epa_features": {
+    "display_name": "Smart Health & ePA",
+    "description": "Feedback specifically related to the electronic patient record (ePA), digital prescriptions, and Smart Health integrations.",
+    "is_active_on_dashboard": true
+  },
+  "usability_ui": {
+    "display_name": "Usability & UI",
+    "description": "Feedback on the user interface, navigation, layout, and overall ease of use.",
+    "is_active_on_dashboard": false
+  },
+  "customer_service": {
+    "display_name": "Support & Kundenservice",
+    "description": "Mentions of hotlines, email support, staff helpfulness, or response times.",
+    "is_active_on_dashboard": false
+  },
+  "updates_versions": {
+    "display_name": "Updates",
+    "description": "Issues or feedback directly related to recent app updates, forced updates, or device compatibility.",
+    "is_active_on_dashboard": false
+  }
+}

@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+plotly
+openpyxl
+requests
+python-dateutil
+transformers
+torch --index-url https://download.pytorch.org/whl/cpu
+setuptools
+scikit-learn>=1.2.0
+huggingface-hub
+google-play-scraper

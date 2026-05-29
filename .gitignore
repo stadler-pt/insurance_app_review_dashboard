@@ -1,0 +1,21 @@
+# Ignore python checkpoints & notebooks caches
+.ipynb_checkpoints/
+__pycache__/
+
+# Ignore any model folders or checkpoint directories
+**/checkpoint-*/
+**/ovr_models/
+model_xlm-roberta-base/
+model_german-sentiment-bert/
+
+# Ignore heavy ML file outputs anywhere in the project
+*.pt
+*.safetensors
+*.bin
+*.pkl
+
+# Data and structural outputs
+output/
+data/
+*.csv
+*.xlsx

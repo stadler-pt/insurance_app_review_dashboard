@@ -1,0 +1,7 @@
+{
+  "project_title": "App Review Decision Support Dashboard",
+  "raw_reviews_path": "data/raw/reviews_final_hek_viactiv.xlsx",
+  "inference_results_path": "dashboard/data/processed/reviews_with_predictions.csv",
+  "dashboard_thresholds_path": "notebooks/output/03_model_training/results_approach_loss_experiment/best_dashboard_model/dashboard_thresholds.csv",
+  "export_model_dir": "notebooks/output/03_model_training/results_approach_loss_experiment/best_dashboard_model"
+}
