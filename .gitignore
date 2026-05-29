@@ -13,9 +13,3 @@ model_german-sentiment-bert/
 *.safetensors
 *.bin
 *.pkl
-
-# Data and structural outputs
-output/
-data/
-*.csv
-*.xlsx

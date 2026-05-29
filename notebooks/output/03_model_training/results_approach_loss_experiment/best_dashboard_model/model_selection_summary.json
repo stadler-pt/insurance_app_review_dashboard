@@ -1,0 +1,22 @@
+{
+  "model_name": "xlm-roberta-base",
+  "approach": "one_vs_rest",
+  "loss_mode": "weighted_bce",
+  "threshold_mode": "dashboard",
+  "selection_metric": "macro_f1",
+  "final_metrics_on_full_data": {
+    "micro_f1": 0.7739678096571029,
+    "macro_f1": 0.730834332854402,
+    "hamming_loss": 0.13458333333333333
+  },
+  "labels": [
+    "auth_registration",
+    "customer_service",
+    "document_management",
+    "general_feedback",
+    "smarthealth_epa_features",
+    "tech_stability_crash",
+    "updates_versions",
+    "usability_ui"
+  ]
+}
