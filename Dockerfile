@@ -1,22 +1,26 @@
 FROM python:3.10-slim
 
-# System-Tools für Pakete installieren
+# System-Tools installieren
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
+# Hugging Face Spaces verlangen einen non-root User (uid 1000) für korrekte Schreibrechte
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+WORKDIR $HOME/app
 
-# 1. Anforderungen aus dem Unterordner kopieren und installieren
-COPY streamlit_app/requirements.txt .
+# Anforderungen kopieren und installieren (Besitzrechte an den User übergeben)
+COPY --chown=user streamlit_app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 2. Den gesamten Projektinhalt (inkl. output/ mit den Modellen) kopieren
-COPY . .
+# Gesamten Projektinhalt kopieren
+COPY --chown=user . .
 
-# Hugging Face Spaces Port freigeben
 EXPOSE 7860
 
-# 3. Streamlit direkt aus dem Unterordner starten
-CMD ["streamlit", "run", "streamlit_app/app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Streamlit mit deaktiviertem CORS starten, damit der HF-Healthcheck nicht blockiert wird
+CMD ["streamlit", "run", "streamlit_app/app.py", "--server.port=7860", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]

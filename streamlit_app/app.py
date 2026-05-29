@@ -1,15 +1,6 @@
 import sys
 from pathlib import Path
 
-APP_ROOT = Path(__file__).resolve().parent
-SRC_DIR = APP_ROOT / "src"
-
-if str(SRC_DIR) not in sys.path:
-    sys.path.append(str(SRC_DIR))
-
-import pandas as pd
-import streamlit as st
-
 from aggregation import label_summary, review_summary
 from charts import plot_label_counts, plot_rating_distribution, plot_review_volume
 from config_loader import get_app_config, get_label_metadata, load_json
@@ -22,6 +13,24 @@ from review_fetchers import (
     fetch_live_reviews,
     filter_date_range,
 )
+
+import pandas as pd
+import streamlit as st
+
+st.set_page_config(
+    page_title="Review-Dashboard",
+    page_icon="📊",
+    layout="wide",
+)
+
+cfg = get_app_config()
+label_meta = get_label_metadata()
+
+APP_ROOT = Path(__file__).resolve().parent
+SRC_DIR = APP_ROOT / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 # CSS-Styles for the Dashboard
 st.markdown("""
@@ -274,15 +283,6 @@ PROB_PREFIX = "Modellwahrscheinlichkeit: "
 
 def close_welcome_dialog():
     st.session_state.show_welcome_dialog = False
-
-st.set_page_config(
-    page_title="Review-Dashboard",
-    page_icon="📊",
-    layout="wide",
-)
-
-cfg = get_app_config()
-label_meta = get_label_metadata()
 
 labels = [
     'auth_registration',
