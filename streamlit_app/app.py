@@ -1,36 +1,72 @@
 import sys
 from pathlib import Path
 
+APP_ROOT = Path(__file__).resolve().parent
+SRC_DIR = APP_ROOT / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
 from aggregation import label_summary, review_summary
 from charts import plot_label_counts, plot_rating_distribution, plot_review_volume
 from config_loader import get_app_config, get_label_metadata, load_json
-from inference import load_model_bundle, predict_dashboard_labels
-from preprocessing import prepare_reviews
 from clustering import build_word_clusters
-from review_fetchers import (
-    DEFAULT_COUNTRIES,
-    DEFAULT_LANGUAGES,
-    fetch_live_reviews,
-    filter_date_range,
-)
 
 import pandas as pd
 import streamlit as st
 
+# Streamlit page-level configuration.
 st.set_page_config(
     page_title="Review-Dashboard",
     page_icon="📊",
     layout="wide",
 )
 
+# Default filter values for country and language selection.
+DEFAULT_COUNTRIES = ["de", "fr", "pl", "gb", "us"]
+DEFAULT_LANGUAGES = ["de", "en", "fr", "pl"]
+
+# Global configuration objects loaded once during script execution.
+# The application configuration contains deployment- and project-specific
+# parameters, while label metadata can be used to describe available labels.
 cfg = get_app_config()
 label_meta = get_label_metadata()
 
-APP_ROOT = Path(__file__).resolve().parent
-SRC_DIR = APP_ROOT / "src"
+# Paths used for persistence and deployment diagnostics.
+# /data is the typical writable location in Hugging Face Spaces when
+# persistent storage is available.
+BUCKET_ROOT = Path("/data")
+HF_CACHE_ROOT = Path("/data/.huggingface")
 
-if str(SRC_DIR) not in sys.path:
-    sys.path.append(str(SRC_DIR))
+def bucket_write_test():
+    """
+    Performs a simple write test in the deployment storage location.
+
+    The function is intended as a lightweight health check for writable
+    persistent storage. It attempts to create a small directory and file
+    under /data and returns a status flag together with either the created
+    file path or the raised exception message.
+    """
+    try:
+        BUCKET_ROOT.mkdir(parents=True, exist_ok=True)
+        test_dir = BUCKET_ROOT / "healthcheck"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        test_file = test_dir / "write_test.txt"
+        test_file.write_text("bucket write works", encoding="utf-8")
+        return True, str(test_file)
+    except Exception as e:
+        return False, str(e)
+
+@st.cache_data(show_spinner=False)
+def get_clustered_df(scored_df):
+    """
+    Caches the clustering result derived from the scored review DataFrame.
+
+    Clustering is computationally more expensive than simple filtering or
+    aggregation. Caching prevents unnecessary recomputation during reruns
+    as long as the underlying scored review data remains unchanged.
+    """
+    return build_word_clusters(scored_df, text_col="reviewtext", n_clusters=6)
 
 # CSS-Styles for the Dashboard
 st.markdown("""
@@ -47,30 +83,20 @@ st.markdown("""
     --color-success-bg: #E8F6EE;
     --color-success-text: #2E7D57;
 }
-
-
 .stApp {
     background: var(--color-bg);
     color: var(--color-text);
 }
-
-
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-
-
 h1, h2, h3 {
     color: var(--color-text);
 }
-
-
 p, label, .stCaption {
     color: var(--color-muted);
 }
-
-
 /* Inputs / Selectbox / Multiselect */
 .stTextInput input,
 .stDateInput input,
@@ -81,16 +107,12 @@ div[data-baseweb="select"] > div {
     border: 1px solid var(--color-border) !important;
     border-radius: 10px !important;
 }
-
-
 /* Multiselect tags */
 [data-baseweb="tag"] {
     background-color: var(--color-primary-soft) !important;
     color: var(--color-primary-dark) !important;
     border: 1px solid #BFE4EF !important;
 }
-
-
 /* Buttons */
 .stButton > button {
     background: var(--color-primary);
@@ -99,19 +121,13 @@ div[data-baseweb="select"] > div {
     border-radius: 10px;
     font-weight: 600;
 }
-
-
 .stButton > button:hover {
     background: var(--color-primary-dark);
 }
-
-
 /* Tabs */
 div[data-baseweb="tab-list"] {
     gap: 0.35rem;
 }
-
-
 button[data-baseweb="tab"] {
     background: var(--color-surface);
     color: var(--color-muted);
@@ -120,8 +136,6 @@ button[data-baseweb="tab"] {
     border-radius: 10px 10px 0 0;
     padding: 0.55rem 0.9rem;
 }
-
-
 button[data-baseweb="tab"][aria-selected="true"] {
     background: var(--color-primary-soft);
     color: var(--color-primary-dark);
@@ -129,8 +143,6 @@ button[data-baseweb="tab"][aria-selected="true"] {
     border-bottom: 3px solid var(--color-primary);
     font-weight: 600;
 }
-
-
 /* Metrics / cards */
 div[data-testid="stMetric"] {
     background: var(--color-surface);
@@ -138,18 +150,12 @@ div[data-testid="stMetric"] {
     border-radius: 14px;
     padding: 1rem;
 }
-
-
 div[data-testid="stMetricLabel"] {
     color: var(--color-muted);
 }
-
-
 div[data-testid="stMetricValue"] {
     color: var(--color-text);
 }
-
-
 /* Dataframes */
 div[data-testid="stDataFrame"] {
     background: var(--color-surface);
@@ -157,8 +163,6 @@ div[data-testid="stDataFrame"] {
     border-radius: 14px;
     overflow: hidden;
 }
-
-
 /* Info / success messages */
 div[data-testid="stInfo"] {
     background: var(--color-primary-soft);
@@ -166,8 +170,6 @@ div[data-testid="stInfo"] {
     color: var(--color-text);
     border-radius: 12px;
 }
-
-
 div[data-testid="stAlert"] {
     border-radius: 12px;
 }
@@ -179,14 +181,10 @@ div[data-testid="stDataFrame"] {
     border-radius: 14px !important;
     overflow: hidden !important;
 }
-
-
 /* Glide data grid root */
 div[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {
     border: none !important;
 }
-
-
 /* Try to align internal data editor colors */
 div.stDataFrameGlideDataEditor {
     --gdg-bg-cell: #FFFFFF !important;
@@ -201,40 +199,28 @@ div.stDataFrameGlideDataEditor {
     --gdg-accent-color: #00A9D9 !important;
     --gdg-header-font-style: 600 14px sans-serif !important;
 }
-
-
 /* Optional: toolbar above dataframe */
 div[data-testid="stDataFrameToolbar"] {
     background: #FFFFFF !important;
     border-bottom: 1px solid #E6EEF2 !important;
 }
-
-
 /* Standard buttons */
 .stButton > button {
     background: #00A9D9 !important;
     color: #FFFFFF !important;
     border: 1px solid #00A9D9 !important;
 }
-
-
 .stButton > button p {
     color: #FFFFFF !important;
 }
-
-
 .stButton > button:hover {
     background: #0094BF !important;
     color: #FFFFFF !important;
     border: 1px solid #0094BF !important;
 }
-
-
 .stButton > button:hover p {
     color: #FFFFFF !important;
 }
-
-
 .stButton > button:focus,
 .stButton > button:focus-visible,
 .stButton > button:active {
@@ -242,17 +228,15 @@ div[data-testid="stDataFrameToolbar"] {
     border-color: #0094BF !important;
     box-shadow: 0 0 0 0.2rem rgba(0, 169, 217, 0.20) !important;
 }
-
-
 .stButton > button:focus p,
 .stButton > button:focus-visible p,
 .stButton > button:active p {
     color: #FFFFFF !important;
 }                         
-
 </style>
 """, unsafe_allow_html=True)
 
+# Mapping from internal column names to user-facing German labels.
 DISPLAY_COLUMNS = {
     "reviewdate": "Datum",
     "sourcestore": "Store",
@@ -268,6 +252,7 @@ DISPLAY_COLUMNS = {
     "predicted_dashboard_labels": "Vorhergesagte Label",
 }
 
+# Mapping from technical label identifiers to readable German topic names.
 LABEL_NAME_MAP = {
     "auth_registration": "Login & Registrierung",
     "tech_stability_crash": "Performance, Stabilität & Abstürze",
@@ -279,11 +264,18 @@ LABEL_NAME_MAP = {
     "customer_service": "Support & Kundenservice",
 }
 
+# Prefix used for dynamically generated probability column labels in the detailed review table.
 PROB_PREFIX = "Modellwahrscheinlichkeit: "
 
 def close_welcome_dialog():
+    """
+    Helper function that updates the session state so that the introductory
+    dialog is no longer shown.
+    """
     st.session_state.show_welcome_dialog = False
 
+# Active labels that are currently included in the prediction workflow.
+# These labels represent the subset of topics for which the model output is displayed and aggregated in the dashboard.
 labels = [
     'auth_registration',
     'tech_stability_crash',
@@ -292,22 +284,34 @@ labels = [
     'smarthealth_epa_features'
 ]
 
+# Main page title and introductory caption.
 st.title("Automatisierte Analyse von App-Reviews zur Unterstützung des Produktmanagements")
 st.caption(
     "Live-Extraktion aus Google Play und Apple App Store mit modellgestützter Analyse vordefinierter Label."
 )
 
+# The storage write test is executed once during app initialization.
+# The result can be used for diagnostics during deployment.
+bucket_ok, bucket_info = bucket_write_test()
+
+# Variables for selected app identifiers are initialized up front and later filled depending on the active store selection.
 selected_google_id = None
 selected_apple_id = None
 
+# Configuration defaults for the app selection form are read from JSON.
 app_config_path = APP_ROOT / "config" / "app_config.json"
 app_config_raw = load_json(app_config_path)
 
+# Session state initialization for the introductory information dialog.
 if "show_welcome_dialog" not in st.session_state:
     st.session_state.show_welcome_dialog = True
 
 @st.dialog("Hinweise zum Dashboard", width="large")
 def show_welcome_dialog():
+    """
+    Introductory dialog explaining the purpose, scope, and limitations
+    of the dashboard.
+    """
     st.markdown("#### Zweck des Dashboards")
     st.markdown(
         "Dieses Dashboard visualisiert App-Reviews und ordnet diesen mithilfe eines Machine-Learning-Modells "
@@ -364,17 +368,21 @@ def show_welcome_dialog():
         """
     )
 
+    # The dialog can be dismissed explicitly.
     if st.button("Verstanden", type="primary"):
         st.session_state.show_welcome_dialog = False
         st.rerun()
 
+# The dialog is shown only if the corresponding session state flag is active.
 if st.session_state.show_welcome_dialog:
     show_welcome_dialog()
 
+# Default form values are read from the configuration file.
 app_name_default = app_config_raw.get("app_name", "HEK Service-App")
 googleplay_default = app_config_raw.get("googleplay_app_id", "de.hek.serviceapp")
 apple_default = app_config_raw.get("apple_app_id", "1287511413")
 
+# The top section of the interface contains all controls needed to define the review extraction query.
 selection_card = st.container()
 with selection_card:
     st.subheader("Review-Auswahl")
@@ -394,6 +402,7 @@ with selection_card:
             format_func=lambda x: "Google Play" if x == "googleplay" else "Apple App Store",
         )
 
+    # Column 3 contains the date range selector with a default lookback window of 180 days.
     with c3:
         today = pd.Timestamp.today().date()
         default_start = (pd.Timestamp.today() - pd.Timedelta(days=180)).date()
@@ -419,24 +428,36 @@ with selection_card:
             default=DEFAULT_LANGUAGES,
         )
 
+    # Validation and unpacking of the date range input.
     if isinstance(date_range, tuple) and len(date_range) == 2:
         start_date, end_date = date_range
     else:
         start_date, end_date = default_start, today
 
+    # Main action button that triggers the full pipeline:
+    # extraction, filtering, preprocessing, and model inference.
     fetch_clicked = st.button(
         "Reviews live laden",
         type="primary",
         use_container_width="stretch",
     )
 
+# Session state container for the processed review data.
+# This allows the resulting DataFrame to persist across reruns after the user has triggered the analysis once.
 if "scored_df" not in st.session_state:
     st.session_state["scored_df"] = None
 
+# Placeholders for a progress bar and a status container.
 progress_bar = st.empty()
 status_placeholder = st.empty()
 
 if fetch_clicked:
+    # Heavy modules are imported only when needed. This reduces startup cost
+    # during initial page rendering and keeps the app responsive until the user explicitly starts the analysis pipeline.
+    from inference import predict_dashboard_labels
+    from preprocessing import prepare_reviews
+    from review_fetchers import fetch_live_reviews, filter_date_range
+    
     selected_google_id = googleplay_app_id.strip() if "googleplay" in stores else None
     selected_apple_id = apple_app_id.strip() if "appleappstore" in stores else None
 
@@ -450,6 +471,7 @@ if fetch_clicked:
 
         with status_placeholder.container():
             with st.status("Starte Review-Verarbeitung...", expanded=True) as status:
+                # Step 1: Live extraction from the selected app stores.
                 st.write("1/4 Extrahiere Reviews aus den Stores...")
 
                 live_df = fetch_live_reviews(
@@ -468,6 +490,7 @@ if fetch_clicked:
                 )
                 st.write(f"✓ Extraktion abgeschlossen: {raw_count} Reviews gefunden")
 
+                # Step 2: Filter reviews by the selected date range.
                 st.write("2/4 Filtere Reviews nach Datumsbereich...")
                 live_df = filter_date_range(live_df, start_date, end_date)
 
@@ -480,6 +503,7 @@ if fetch_clicked:
                     f"✓ Datumsfilter abgeschlossen: {filtered_count} Reviews im gewählten Zeitraum"
                 )
 
+                # Step 3: Preprocessing the raw reviews for inference.
                 st.write("3/4 Bereite Reviews für die Analyse vor...")
                 live_df = prepare_reviews(live_df)
 
@@ -492,7 +516,8 @@ if fetch_clicked:
                     f"✓ Vorverarbeitung abgeschlossen: {prepared_count} Reviews bereit für Analyse"
                 )
 
-                st.write("4/4 Analysiere Reviews mit dem Modell...")
+                # Step 4: Model inference assigns the dashboard labels and stores associated probabilities.
+                st.write("4/4 Analysiere Reviews mit dem Modell... (dies kann einige Minuten dauern)")
 
                 if live_df.empty:
                     st.session_state["scored_df"] = None
@@ -507,7 +532,7 @@ if fetch_clicked:
                         expanded=False,
                     )
                 else:
-                    # --- CHANGED: Call the updated inference function ---
+                    # The full scored review DataFrame is stored in session state so that all tabs can reuse the result.
                     st.session_state["scored_df"] = predict_dashboard_labels(live_df)
 
                     scored_count = (
@@ -527,21 +552,24 @@ if fetch_clicked:
                         expanded=False,
                     )
 
+# The analyzed review dataset is retrieved from session state.
 scored_df = st.session_state.get("scored_df")
 
+# If no data is available yet, the app stops here after presenting a helpful hint.
 if scored_df is None or scored_df.empty:
     st.info(
         "Noch keine Reviews geladen. Bitte oben die Suchkriterien festlegen und anschließend auf „Reviews live laden“ klicken."
     )
     st.stop()
 
+# Summary statistics are computed once and then reused in the overview and label analysis sections.
 summary = review_summary(scored_df)
 label_df = label_summary(scored_df, labels)
 
 st.success(f"{len(scored_df)} Reviews wurden live geladen und analysiert.")
 
-
-with st.expander("📖 Legende: Was bedeuten die erkannten Label?", expanded=False):
+# Collapsible explanation of the available labels.
+with st.expander("📖 Legende: Was bedeuten die verschiedenen Label?", expanded=False):
     st.markdown("""
     Das System teilt die Bewertungen automatisch in fünf Themenbereiche ein:
     
@@ -552,15 +580,17 @@ with st.expander("📖 Legende: Was bedeuten die erkannten Label?", expanded=Fal
     * **Smart Health / ePA:** Bewertungen, die sich speziell auf die elektronische Patientenakte (ePA) oder andere Smart Health-Funktionen beziehen.
     """)
 
-
+# The application is structured into four thematic tabs:
+# overview, label analysis, detailed review inspection, and word clustering.
 tab1, tab2, tab3, tab4 = st.tabs(
     ["Übersicht", "Label-Analyse", "Einzelreviews", "Wortcluster"],
     key="main_tabs"
 )
 
-clustered_df = build_word_clusters(scored_df, text_col="reviewtext", n_clusters=6)
+clustered_df = get_clustered_df(scored_df)
 
 with tab1:
+    # Tab 1 presents the high-level descriptive overview of the review corpus.
     st.subheader("Überblick")
 
     st.caption(
@@ -592,7 +622,7 @@ with tab1:
         top_right.plotly_chart(rating_chart, use_container_width="stretch")
 
 with tab2:
-    
+    # Tab 2 focuses on aggregated topic distributions across the predicted label space.
     st.subheader("Label-Analyse")
 
     st.caption(
@@ -623,6 +653,7 @@ with tab2:
     )
 
 with tab3:
+    # Tab 3 exposes the individual review-level records and thereby enables manual validation and deeper inspection of model output.
     st.subheader("Einzelreviews")
 
     st.caption(
@@ -634,7 +665,11 @@ with tab3:
     f1, f2, f3 = st.columns([1, 1, 2])
 
     with f1:
-        selected_label = st.selectbox("Label-Filter", ["Alle"] + labels)
+        selected_label = st.selectbox(
+            "Label-Filter",
+            ["Alle"] + labels,
+            format_func=lambda x: "Alle" if x == "Alle" else LABEL_NAME_MAP.get(x, x)
+        )
 
     with f2:
         rating_options = (
@@ -727,6 +762,7 @@ with tab3:
     )
 
 with tab4:
+    # Tab 4 performs exploratory clustering on the review texts in order to reveal recurring linguistic patterns beyond the predefined labels.
     st.subheader("Wortcluster")
 
     st.caption(

@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from config_loader import get_label_metadata
 
-
+# Color palette used across all charts for a consistent visual style.
 COLOR_PRIMARY = "#00A9D9"
 COLOR_PRIMARY_DARK = "#007FA3"
 COLOR_PRIMARY_LIGHT = "#7CCFE6"
@@ -14,7 +14,7 @@ COLOR_GRID = "#E6EEF2"
 COLOR_BORDER = "#D8E7EE"
 COLOR_BACKGROUND = "#FFFFFF"
 
-
+# Mapping from internal label keys to display names used in the charts.
 LABEL_DISPLAY_MAP = {
     "auth_registration": "Login & Registrierung",
     "tech_stability_crash": "Performance, Stabilität & Abstürze",
@@ -28,6 +28,7 @@ LABEL_DISPLAY_MAP = {
 
 
 def apply_chart_style(fig):
+    """Apply a shared layout and axis style to all Plotly figures."""
     if fig is None:
         return None
 
@@ -68,9 +69,11 @@ def apply_chart_style(fig):
 
 
 def plot_review_volume(df):
+    """Create a cumulative review volume chart based on review dates."""
     if df is None or df.empty or "reviewdate" not in df.columns:
         return None
 
+    # Convert dates and remove invalid values before aggregation.
     chart_df = df.copy()
     chart_df["reviewdate"] = pd.to_datetime(chart_df["reviewdate"], errors="coerce")
     chart_df = chart_df.dropna(subset=["reviewdate"])
@@ -78,6 +81,7 @@ def plot_review_volume(df):
     if chart_df.empty:
         return None
 
+    # Aggregate reviews by day and compute the cumulative total.
     daily_counts = (
         chart_df.assign(datum=chart_df["reviewdate"].dt.floor("D"))
         .groupby("datum", as_index=False)
@@ -111,9 +115,11 @@ def plot_review_volume(df):
 
 
 def plot_rating_distribution(df):
+    """Create a bar chart showing the distribution of review ratings."""
     if df is None or df.empty or "rating" not in df.columns:
         return None
 
+    # Convert ratings to numeric values and keep only valid star ratings.
     chart_df = df.copy()
     chart_df["rating"] = pd.to_numeric(chart_df["rating"], errors="coerce")
     chart_df = chart_df.dropna(subset=["rating"])
@@ -122,6 +128,7 @@ def plot_rating_distribution(df):
     if chart_df.empty:
         return None
 
+    # Count rating frequencies for the full 1-to-5 range.
     rating_counts = (
         chart_df["rating"]
         .astype(int)
@@ -166,14 +173,17 @@ def plot_rating_distribution(df):
 
 
 def plot_label_counts(label_df):
+    """Create a bar chart showing the number of reviews per predicted label."""
     if label_df is None or label_df.empty:
         return None
 
     plot_df = label_df.copy()
 
+    # Ensure the required aggregation columns are present.
     if "label_key" not in plot_df.columns or "anzahl" not in plot_df.columns:
         return None
 
+    # Replace internal label keys with human-readable display names.
     x_labels = [
         LABEL_DISPLAY_MAP.get(str(x), str(x))
         for x in plot_df["label_key"].tolist()
