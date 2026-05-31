@@ -309,10 +309,9 @@ if "welcome_acknowledged" not in st.session_state:
 
 if not st.session_state.welcome_acknowledged:
     with st.container():
-        st.subheader("Hinweise zum Dashboard")
+        st.subheader("Wichtiger Hinweis: Forschungsprototyp")
 
         st.warning(
-            "**Wichtiger Hinweis: Forschungsprototyp** "
             "Dieses Dashboard ist ein experimenteller Prototyp, der im Rahmen einer Machbarkeitsstudie entwickelt wurde. "
             "Alle dargestellten Auswertungen basieren auf maschinellen Schätzungen (Machine Learning) und sind grundsätzlich fehlerbehaftet. ",
             icon="⚠️"            
