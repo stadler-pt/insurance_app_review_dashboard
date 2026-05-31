@@ -267,13 +267,6 @@ LABEL_NAME_MAP = {
 # Prefix used for dynamically generated probability column labels in the detailed review table.
 PROB_PREFIX = "Modellwahrscheinlichkeit: "
 
-def close_welcome_dialog():
-    """
-    Helper function that updates the session state so that the introductory
-    dialog is no longer shown.
-    """
-    st.session_state.show_welcome_dialog = False
-
 # Active labels that are currently included in the prediction workflow.
 # These labels represent the subset of topics for which the model output is displayed and aggregated in the dashboard.
 labels = [
@@ -302,80 +295,93 @@ selected_apple_id = None
 app_config_path = APP_ROOT / "config" / "app_config.json"
 app_config_raw = load_json(app_config_path)
 
-# Session state initialization for the introductory information dialog.
-if "show_welcome_dialog" not in st.session_state:
-    st.session_state.show_welcome_dialog = True
-
-@st.dialog("Hinweise zum Dashboard", width="large")
-def show_welcome_dialog():
+def dismiss_welcome_gate():
     """
-    Introductory dialog explaining the purpose, scope, and limitations
-    of the dashboard.
+    Mark the introductory blocking screen as acknowledged
+    for the current session.
     """
-    st.markdown("#### Zweck des Dashboards")
-    st.markdown(
-        "Dieses Dashboard visualisiert App-Reviews und ordnet diesen mithilfe eines Machine-Learning-Modells "
-        "automatisch Themenkategorien zu. Es dient der explorativen Datenanalyse und dem quantitativen Monitoring "
-        "von Nutzerfeedback zur Unterstützung des Produktmanagements."
-    )
-    
-    st.divider()
-    
-    st.markdown("#### Kategorien und Modellzuverlässigkeit")
-    st.markdown("Das Dashboard zeigt fünf Hauptthemen, die sich in ihrer Vorhersagegenauigkeit unterscheiden:")
-    
-    st.markdown("**🟢 1. Gute Zuverlässigkeit**")
-    st.markdown(
-        """
-        * Login & Registrierung
-        * Performance, Stabilität & Abstürze
-        """
-    )
-    st.info("**Hinweis:** Das Modell besitzt hier eine hohe Präzision. Ausschläge in diesen Metriken sind verlässlich.", icon="✅")
-    
-    st.markdown("**🟡 2. Geringere Zuverlässigkeit**")
-    st.markdown(
-        """
-        * Allgemeines Feedback
-        * Dokumentenmanagement
-        * Smart Health / ePA
-        """
-    )
-    st.warning(
-        "**Hinweis:** Aufgrund geringer Trainingsdaten ist das Modell für diese Themengebiete fehleranfälliger "
-        "und erzeugt mehr Fehlklassifikationen (insbesondere False Positives). Aufgrund der praktischen Relevanz "
-        "wurden sie jedoch beibehalten. Die Auswertungen zu diesen Themen dienen daher primär der Trenderkennung; "
-        "auffällige Ausschläge erfordern eine stichprobenartige, manuelle Prüfung der zugrunde liegenden Texte.", 
-        icon="⚠️"
-    )
-    
-    st.markdown("**⚪ 3. Ausgeschlossene Themen**")
-    st.markdown(
-        "Aufgrund unzureichender Modellleistung werden Themen wie **Usability**, **Updates** und **Kundenservice** "
-        "aktuell nicht automatisch klassifiziert. Auch eine Aufgliederung der Themen in die einzelnen App-Funktionen "
-        "ist aus diesem Grund derzeit nicht möglich."
-    )
-    
-    st.divider()
-    
-    st.markdown("#### Systemgrenzen und Interpretation")
-    st.markdown(
-        """
-        * **Assistenzfunktion:** Die Metriken sind maschinelle Schätzungen. Sie unterstützen die Analyse, ersetzen aber keine qualitative Einzelfallprüfung.
-        * **Technische Datenextraktion (App Store):** Das automatische Laden von Bewertungen aus dem Apple App Store läuft nicht immer ganz stabil. Da Apple die technischen Regeln dafür jederzeit ohne Ankündigung ändern kann, kann es hin und wieder zu kurzen Ausfällen oder unvollständigen Ergebnissen kommen.
-        * **Sprachliche Limitierungen:** Sehr kurze Texte, Sarkasmus oder implizite Kritik können zu fehlerhaften Zuordnungen führen.
-        * **Limitierungen durch Trainingssdaten:** Es handelt sich bei diesem Dashboard um einen Prototypen, der mit einer begrenzten Anzahl von Daten trainiert wurde. Die Ergebnisse sollten vor diesem Hintergrund interpretiert werden. Insbesondere bei den weniger zuverlässigen Kategorien können Fehlklassifikationen auftreten, die zu falschen Schlussfolgerungen führen können, wenn sie nicht manuell überprüft werden.
-        """
-    )
+    st.session_state.welcome_acknowledged = True
 
-    # The dialog can be dismissed explicitly.
-    if st.button("Verstanden", type="primary"):
-        st.session_state.show_welcome_dialog = False
-        st.rerun()
 
-# The dialog is shown only if the corresponding session state flag is active.
-if st.session_state.show_welcome_dialog:
-    show_welcome_dialog()
+if "welcome_acknowledged" not in st.session_state:
+    st.session_state.welcome_acknowledged = False
+
+
+if not st.session_state.welcome_acknowledged:
+    with st.container():
+        st.subheader("Hinweise zum Dashboard")
+
+        st.warning(
+            "**Wichtiger Hinweis: Forschungsprototyp** "
+            "Dieses Dashboard ist ein experimenteller Prototyp, der im Rahmen einer Machbarkeitsstudie entwickelt wurde. "
+            "Alle dargestellten Auswertungen basieren auf maschinellen Schätzungen (Machine Learning) und sind grundsätzlich fehlerbehaftet. ",
+            icon="⚠️"            
+        )
+        
+        st.markdown("### Zweck des Dashboards")
+        st.markdown(
+            "Dieses Dashboard visualisiert App-Reviews und ordnet diesen mithilfe eines Machine-Learning-Modells automatisch Themenkategorien zu. "
+            "Es dient der explorativen Datenanalyse und dem quantitativen Monitoring von Nutzerfeedback zur Unterstützung des Produktmanagements."
+        )
+
+        st.divider()
+
+        st.markdown("### Kategorien und Modellzuverlässigkeit")
+        st.markdown("Das Modell ordnet App-Reviews automatisch fünf Hauptthemen zu, deren Vorhersagegenauigkeit stark variiert:")
+
+        st.markdown("**🟢 1. Gute Zuverlässigkeit**")
+        st.markdown(
+            """
+            * Login & Registrierung
+            * Performance, Stabilität & Abstürze
+            """
+        )
+        st.info(
+            "**Hinweis:** Das Modell funktioniert hier am besten. Dennoch gilt: Auch diese Metriken sind Wahrscheinlichkeiten, keine absoluten Wahrheiten. "
+            "Ausschläge sind verlässliche Indikatoren, können aber vereinzelte Fehlklassifikationen enthalten.",
+            icon="✅"
+        )
+
+        st.markdown("**🟡 2. Geringere Zuverlässigkeit**")
+        st.markdown(
+            """
+            * Allgemeines Feedback
+            * Dokumentenmanagement
+            * Smart Health / ePA
+            """
+        )
+        st.warning(
+            "**Hinweis:** Aufgrund geringer Trainingsdaten ist das Modell für diese Themengebiete fehleranfälliger "
+            "und erzeugt mehr Fehlklassifikationen (insbesondere False Positives). Aufgrund der praktischen Relevanz "
+            "wurden sie jedoch beibehalten. Die Auswertungen zu diesen Themen dienen daher primär der Trenderkennung; "
+            "auffällige Ausschläge erfordern eine stichprobenartige, manuelle Prüfung der zugrunde liegenden Texte.",
+            icon="⚠️"
+        )
+
+        st.markdown("**⚪ 3. Ausgeschlossene Themen**")
+        st.markdown(
+            "Aufgrund unzureichender Modellleistung werden Themen wie **Usability**, **Updates** und **Kundenservice** "
+            "aktuell nicht automatisch klassifiziert. Auch eine Aufgliederung der Themen in die einzelnen App-Funktionen "
+            "ist aus diesem Grund derzeit nicht möglich."
+        )
+
+        st.divider()
+
+        st.markdown("### Systemgrenzen und Interpretation")
+        st.markdown(
+            """
+            * **Assistenzfunktion:** Die Metriken sind maschinelle Schätzungen. Sie unterstützen die Analyse, ersetzen aber keine qualitative Einzelfallprüfung.
+            * **Instabile Datenquelle:** Instabile Datenquelle: Das Laden von Bewertungen aus dem Apple App Store ist technisch bedingt nicht immer stabil. Unangekündigte Änderungen seitens Apple können hin und wieder zu unvollständigen Ergebnissen führen.
+            * **Sprachliche Limitierungen:** Sehr kurze Texte, Sarkasmus oder implizite Kritik können zu fehlerhaften Zuordnungen führen.
+            * **Daten-Limitierung:** Das zugrunde liegende Modell wurde mit einer begrenzten Datenmenge trainiert. Falsche Schlussfolgerungen sind möglich, wenn die Ergebnisse unreflektiert übernommen werden.
+            """
+        )
+
+        if st.button("Verstanden", type="primary", key="welcome_ack_button"):
+            dismiss_welcome_gate()
+            st.rerun()
+
+    st.stop()
 
 # Default form values are read from the configuration file.
 app_name_default = app_config_raw.get("app_name", "HEK Service-App")
